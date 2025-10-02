@@ -210,6 +210,9 @@ static inline UIColor *RippleColor() {
                         itemAppearance:(MDCTabBarItemAppearance)appearance {
   if ([self isTopTabsForPosition:position]) {
     switch (appearance) {
+        case MDCTabBarItemAppearanceTitledImagesHorizontal:
+            return kTitleOnlyBarHeight;
+            
       case MDCTabBarItemAppearanceTitledImages:
         return kTitledImageBarHeight;
 
@@ -529,6 +532,7 @@ static inline UIColor *RippleColor() {
       displayTitle = YES;
       break;
 
+    case MDCTabBarItemAppearanceTitledImagesHorizontal:
     case MDCTabBarItemAppearanceTitledImages:
       displayImage = YES;
       displayTitle = YES;

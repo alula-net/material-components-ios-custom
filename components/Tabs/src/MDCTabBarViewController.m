@@ -284,7 +284,7 @@ const CGFloat MDCTabBarViewControllerAnimationDuration = (CGFloat)0.3;
   // The default height of the tab bar depends on the underlying UITabBarItems of
   // the viewControllers.
   if (hasImages && hasTitles) {
-    self.tabBar.itemAppearance = MDCTabBarItemAppearanceTitledImages;
+      self.tabBar.itemAppearance = MDCTabBarItemAppearanceTitledImagesHorizontal;
   } else if (hasImages) {
     self.tabBar.itemAppearance = MDCTabBarItemAppearanceImages;
   } else {

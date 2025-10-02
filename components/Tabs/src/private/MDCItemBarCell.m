@@ -25,7 +25,7 @@
 #import "MaterialTypography.h"
 
 /// Size of image in points.
-static const CGSize kImageSize = {24, 24};
+static const CGSize kImageSize = {30, 20};
 
 /// Font point size for badges.
 static const CGFloat kBadgeFontSize = 12;
@@ -136,7 +136,7 @@ static const NSTimeInterval kSelectionAnimationDuration = 0.3;
   if (style.shouldDisplayTitle) {
     if (style.shouldDisplayImage) {
       // Title and image
-      bounds.size.width = MAX(textBounds.size.width, kImageSize.width + badgeBounds.size.width * 2);
+      bounds.size.width = MAX(textBounds.size.width + kImageSize.width + 8 + 16, kImageSize.width + badgeBounds.size.width * 2);
       bounds.size.height = textBounds.size.height + style.titleImagePadding + kImageSize.height;
     } else {
       // Just title
@@ -241,8 +241,7 @@ static const NSTimeInterval kSelectionAnimationDuration = 0.3;
 
 #pragma mark - UIView
 
-- (void)layoutSubviews {
-  [super layoutSubviews];
+- (void)layoutSubviewsDefault {
 
   UIEdgeInsets insets = [[self class] minimumEdgeInsets];
   CGRect contentBounds = UIEdgeInsetsInsetRect(self.contentView.bounds, insets);
@@ -316,6 +315,104 @@ static const NSTimeInterval kSelectionAnimationDuration = 0.3;
   self.titleLabel.center =
       MDCRoundCenterWithBoundsAndScale(titleCenter, self.titleLabel.bounds, scale);
 }
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    
+    NSLog(@"Trying to layout item bar cell for %@", [[self class] displayedTitleForTitle:_title style:_style]);
+
+    if (!_image) {
+        NSLog(@"Laying out using default method!");
+
+        [self layoutSubviewsDefault];
+        return;
+    }
+    
+    NSLog(@"Laying out using horizontal layout method!");
+
+    UIEdgeInsets insets = [[self class] minimumEdgeInsets];
+    CGRect contentBounds = UIEdgeInsetsInsetRect(self.contentView.bounds, insets);
+
+    NSLog(@"Content Bounds: %@", NSStringFromCGRect(contentBounds));
+
+    
+    // Explicit padding from sides
+    CGFloat horizontalPadding = 8.0; // Adjust if needed
+    CGFloat spacing = 8.0; // spacing between title and image
+
+    // Desired fixed image size (30x20)
+    CGSize imageSize = CGSizeMake(30, 20);
+    _imageView.contentMode = UIViewContentModeScaleAspectFill; // prevents distortion/stretching
+
+    // Title size constraints
+    CGFloat maxTitleWidth = CGRectGetWidth(contentBounds) - (horizontalPadding * 2 + spacing + imageSize.width);
+    CGSize maxTitleSize = CGSizeMake(maxTitleWidth, CGRectGetHeight(contentBounds));
+    CGSize titleSize = [_titleLabel sizeThatFits:maxTitleSize];
+    titleSize.width = MIN(titleSize.width, maxTitleWidth);
+    
+    NSLog(@"Title Size: %@", NSStringFromCGSize(titleSize));
+
+    
+    // Enable font adjustment to avoid truncation
+    _titleLabel.adjustsFontSizeToFitWidth = YES;
+    _titleLabel.minimumScaleFactor = 0.8;
+    _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+
+    // Calculate total content width (title + spacing + image)
+    CGFloat totalContentWidth = titleSize.width + spacing + imageSize.width;
+
+    // Calculate starting X with padding
+    CGFloat startX = CGRectGetMidX(contentBounds) - totalContentWidth / 2;
+    CGFloat centerY = CGRectGetMidY(contentBounds);
+
+    // Title position (left)
+    CGPoint titleCenter;
+    titleCenter.x = startX + titleSize.width / 2;
+    titleCenter.y = centerY;
+
+    // Image position (right of title)
+    CGPoint imageCenter;
+    imageCenter.x = startX + titleSize.width + spacing + imageSize.width / 2;
+    imageCenter.y = centerY;
+
+    // Badge positioning (optional)
+    CGPoint badgeCenter = CGPointZero;
+    CGRect badgeBounds = CGRectZero;
+
+    CGSize badgeSize = [_badge sizeThatFits:contentBounds.size];
+    badgeBounds.size = badgeSize;
+
+    if (_style.shouldDisplayBadge && _badgeValue.length > 0) {
+        CGFloat badgeOffsetX = imageSize.width / 2 + badgeSize.width / 2;
+        if (self.mdf_effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft) {
+            badgeOffsetX *= -1;
+        }
+
+        badgeCenter.x = imageCenter.x + badgeOffsetX;
+        badgeCenter.y = CGRectGetMinY(contentBounds) + kBadgeTopPadding + badgeSize.height / 2;
+    }
+
+    // Apply layout with scale-aware rounding
+    UIScreen *screen = self.window.screen ?: UIScreen.mainScreen;
+    CGFloat scale = screen.scale;
+
+    // Layout Title
+    _titleLabel.bounds = MDCRectAlignToScale((CGRect){.size = titleSize}, scale);
+    _titleLabel.center = MDCRoundCenterWithBoundsAndScale(titleCenter, _titleLabel.bounds, scale);
+
+    // Layout Image (explicit fixed size)
+    _imageView.bounds = MDCRectAlignToScale((CGRect){.size = imageSize}, scale);
+    _imageView.center = MDCRoundCenterWithBoundsAndScale(imageCenter, _imageView.bounds, scale);
+
+    NSLog(@"ImageView Frame: %@", NSStringFromCGRect(_imageView.frame));
+
+    
+    // Layout Badge
+    _badge.bounds = MDCRectAlignToScale(badgeBounds, scale);
+    _badge.center = MDCRoundCenterWithBoundsAndScale(badgeCenter, _badge.bounds, scale);
+}
+
+
 
 - (void)tintColorDidChange {
   [super tintColorDidChange];

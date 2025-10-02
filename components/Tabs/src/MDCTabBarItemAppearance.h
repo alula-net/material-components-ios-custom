@@ -24,4 +24,7 @@ typedef NS_ENUM(NSInteger, MDCTabBarItemAppearance) {
 
   /** Tabs are shown as images with titles underneath. */
   MDCTabBarItemAppearanceTitledImages,
+    
+  MDCTabBarItemAppearanceTitledImagesHorizontal,
+
 };

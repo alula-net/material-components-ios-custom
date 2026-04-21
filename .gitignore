@@ -79,6 +79,8 @@ fastlane/screenshots
 docsite-generator
 
 # Compiled python
+# SPM build artifacts
+.build
+.swiftpm
+
 *.pyc
-
-

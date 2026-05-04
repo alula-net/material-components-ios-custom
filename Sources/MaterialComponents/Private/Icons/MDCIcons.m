@@ -29,7 +29,13 @@
   if (!bundle) {
     NSBundle *baseBundle = [NSBundle bundleForClass:[MDCIcons class]];
     NSString *bundlePath = [baseBundle pathForResource:bundleName ofType:@"bundle"];
-    bundle = [NSBundle bundleWithPath:bundlePath];
+    if (bundlePath) {
+      bundle = [NSBundle bundleWithPath:bundlePath];
+    } else {
+      // Under SPM, icon imagesets are processed into the framework's main Assets.car
+      // rather than living in a sub-bundle, so fall back to the framework bundle.
+      bundle = baseBundle;
+    }
     if (bundle) {
       [bundleCache setObject:bundle forKey:bundleName];
     }

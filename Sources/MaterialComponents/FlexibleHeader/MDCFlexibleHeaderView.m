@@ -554,7 +554,7 @@ static char *const kKVOContextMDCFlexibleHeaderView = "kKVOContextMDCFlexibleHea
 }
 
 - (CGFloat)flexibleHeaderSafeAreaDeviceTopSafeAreaInset:(MDCFlexibleHeaderTopSafeArea *)safeAreas {
-  return MDCDeviceTopSafeAreaInset();
+  return MDCDeviceTopSafeAreaInset() - MDCStatusPillBandOverlap(self.window);
 }
 
 #pragma mark - MDCFlexibleHeaderMinMaxHeightDelegate
@@ -676,7 +676,8 @@ static char *const kKVOContextMDCFlexibleHeaderView = "kKVOContextMDCFlexibleHea
   // During modal presentation on non-X devices our top safe area inset can be much larger than it
   // actually will be, causing desiredTopInset to be small or even negative. To guard against this,
   // we ensure that our desired top inset is always at least the header height.
-  CGFloat minimumTopInset = self.minMaxHeight.maximumHeightWithoutTopSafeArea;
+  CGFloat minimumTopInset =
+      self.minMaxHeight.maximumHeightWithoutTopSafeArea - MDCStatusPillBandOverlap(self.window);
   desiredTopInset = MAX(minimumTopInset, desiredTopInset);
 
   UIEdgeInsets insets = scrollView.contentInset;

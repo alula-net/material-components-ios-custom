@@ -17,6 +17,10 @@
 #import "MaterialApplication.h"
 
 const CGFloat MDCFixedStatusBarHeightOnPreiPhoneXDevices = 20;
+const CGFloat MDCStatusPillWidth = 132;
+
+static const CGFloat kStatusPillNavigationBarHeight = 56;
+static const CGFloat kStatusPillMinimumWindowWidth = 600;
 
 static BOOL HasHardwareSafeAreas(void) {
   static BOOL hasHardwareSafeAreas = NO;
@@ -51,4 +55,18 @@ CGFloat MDCDeviceTopSafeAreaInset(void) {
     }
   }
   return topInset;
+}
+
+CGFloat MDCStatusPillBandOverlap(UIWindow *window) {
+  if (@available(iOS 13.0, *)) {
+    UIWindow *hostWindow = window ?: [UIApplication mdc_safeSharedApplication].keyWindow;
+    CGFloat topInset = hostWindow.safeAreaInsets.top;
+    CGFloat statusBarHeight =
+        hostWindow.windowScene.statusBarManager.statusBarFrame.size.height ?: topInset;
+    if (CGRectGetWidth(hostWindow.bounds) >= kStatusPillMinimumWindowWidth &&
+        topInset > kStatusPillNavigationBarHeight && statusBarHeight < topInset / 2) {
+      return kStatusPillNavigationBarHeight;
+    }
+  }
+  return 0;
 }

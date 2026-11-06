@@ -45,7 +45,13 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
   MDCCollectionInfoBarView *_footerInfoBar;
   BOOL _headerInfoBarDismissed;
   CGPoint _inkTouchLocation;
+  CGFloat _lastLayoutWidth;
+  CGFloat _lastAdjustedTopInset;
+  BOOL _restingAtTop;
+  __weak UICollectionView *_scrollObservedCollectionView;
 }
+
+static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionViewControllerContentOffsetContext;
 
 @synthesize collectionViewLayout = _collectionViewLayout;
 
@@ -127,8 +133,15 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
                  withReuseIdentifier:classIdentifier];
 }
 
+- (void)dealloc {
+  [_scrollObservedCollectionView removeObserver:self
+                                     forKeyPath:NSStringFromSelector(@selector(contentOffset))
+                                        context:MDCCollectionViewControllerContentOffsetContext];
+}
+
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
+  [self relayoutAfterSizeChangeIfNeeded];
 
   // Fixes an iOS 11 bug where supplementary views would be given a zPosition of 1, meaning the
   // scroll view indicator (with a zPosition of 0) would be placed behind supplementary views.
@@ -144,6 +157,7 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 
 - (void)setCollectionView:(__kindof UICollectionView *)collectionView {
   [super setCollectionView:collectionView];
+  [self observeUserScrollingOfCollectionView:collectionView];
 
   // Reset editor and ink to provided collection view.
   _editor = [[MDCCollectionViewEditor alloc] initWithCollectionView:collectionView];
@@ -158,6 +172,96 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
     _inkTouchController = [[MDCInkTouchController alloc] initWithView:collectionView];
 #pragma clang diagnostic pop
     _inkTouchController.delegate = self;
+  }
+}
+
+#pragma mark - Size changes
+
+/**
+ Folding or unfolding an iPhone Duo, or rotating, can lay a screen out before its size and side safe area
+ settle, and some transitions never reach the screen. So this reacts to the final width instead: items are
+ re-measured and rebuilt (cells keep subview positions from their old size), and a list that was resting at
+ the top stays there when the top inset changes.
+ */
+- (void)relayoutAfterSizeChangeIfNeeded {
+  UICollectionView *collectionView = self.collectionView;
+  UIEdgeInsets insets = collectionView.adjustedContentInset;
+  CGFloat width = CGRectGetWidth(UIEdgeInsetsInsetRect(collectionView.bounds, insets));
+  CGFloat topInset = insets.top;
+  BOOL firstLayout = (_lastLayoutWidth == 0);
+  BOOL widthChanged = !firstLayout && width != _lastLayoutWidth;
+  BOOL topInsetChanged = !firstLayout && topInset != _lastAdjustedTopInset;
+  _lastLayoutWidth = width;
+  _lastAdjustedTopInset = topInset;
+
+  if (firstLayout) {
+    _restingAtTop = [self isRestingAtTop];
+    return;
+  }
+  if (!widthChanged && !topInsetChanged) {
+    return;
+  }
+
+  BOOL restingAtTop = _restingAtTop;
+  if (widthChanged) {
+    [self.collectionViewLayout invalidateLayout];
+  }
+  if (restingAtTop) {
+    [self scrollToRestingTop];
+  }
+  __weak typeof(self) weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    typeof(self) strongSelf = weakSelf;
+    if (!strongSelf) {
+      return;
+    }
+    if (widthChanged) {
+      [UIView performWithoutAnimation:^{
+        [strongSelf.collectionView reloadData];
+        [strongSelf.collectionView layoutIfNeeded];
+      }];
+    }
+    if (restingAtTop) {
+      [strongSelf scrollToRestingTop];
+    }
+  });
+}
+
+- (BOOL)isRestingAtTop {
+  UICollectionView *collectionView = self.collectionView;
+  return fabs(collectionView.contentOffset.y + collectionView.adjustedContentInset.top) < 0.5;
+}
+
+- (void)scrollToRestingTop {
+  UICollectionView *collectionView = self.collectionView;
+  collectionView.contentOffset =
+      CGPointMake(collectionView.contentOffset.x, -collectionView.adjustedContentInset.top);
+}
+
+/** Only scrolling the user does counts; offsets UIKit adjusts during a size change must not change the state. */
+- (void)observeUserScrollingOfCollectionView:(UICollectionView *)collectionView {
+  NSString *keyPath = NSStringFromSelector(@selector(contentOffset));
+  [_scrollObservedCollectionView removeObserver:self
+                                     forKeyPath:keyPath
+                                        context:MDCCollectionViewControllerContentOffsetContext];
+  _scrollObservedCollectionView = collectionView;
+  [collectionView addObserver:self
+                   forKeyPath:keyPath
+                      options:0
+                      context:MDCCollectionViewControllerContentOffsetContext];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context {
+  if (context != MDCCollectionViewControllerContentOffsetContext) {
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    return;
+  }
+  UICollectionView *collectionView = self.collectionView;
+  if (object == collectionView && (collectionView.isTracking || collectionView.isDecelerating)) {
+    _restingAtTop = [self isRestingAtTop];
   }
 }
 

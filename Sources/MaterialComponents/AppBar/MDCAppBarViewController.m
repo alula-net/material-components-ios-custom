@@ -304,7 +304,8 @@ static NSString *const kMaterialAppBarBundle = @"MaterialAppBar.bundle";
 #pragma mark - Private
 
 - (CGFloat)verticalContraintLength {
-  return MDCDeviceTopSafeAreaInset() + _headerStackViewOffset;
+  return MDCDeviceTopSafeAreaInset() - MDCStatusPillBandOverlap(self.view.window) +
+         _headerStackViewOffset;
 }
 
 - (CGFloat)topSafeAreaContraintLength {

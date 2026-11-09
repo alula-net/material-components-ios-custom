@@ -35,6 +35,70 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 @property(nonatomic, assign) BOOL currentlyActiveInk;
 @end
 
+/**
+ Records whether a collection view rests at its top after each scroll, user or programmatic. It is a separate
+ object so subclasses that override KVO without calling super can't swallow its notifications.
+ */
+@interface MDCCollectionViewRestingTopTracker : NSObject
+@property(nonatomic, readonly) BOOL restingAtTop;
+- (instancetype)initWithCollectionView:(UICollectionView *)collectionView;
+/** Records the current position and the geometry later offset changes are compared against. */
+- (void)recordGeometry;
+@end
+
+@implementation MDCCollectionViewRestingTopTracker {
+  __weak UICollectionView *_collectionView;
+  CGFloat _width;
+  CGFloat _topInset;
+}
+
+static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewRestingTopTrackerContext;
+
+- (instancetype)initWithCollectionView:(UICollectionView *)collectionView {
+  self = [super init];
+  if (self) {
+    _collectionView = collectionView;
+    [collectionView addObserver:self
+                     forKeyPath:NSStringFromSelector(@selector(contentOffset))
+                        options:0
+                        context:MDCCollectionViewRestingTopTrackerContext];
+    [self recordGeometry];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  [_collectionView removeObserver:self
+                       forKeyPath:NSStringFromSelector(@selector(contentOffset))
+                          context:MDCCollectionViewRestingTopTrackerContext];
+}
+
+- (void)recordGeometry {
+  UICollectionView *collectionView = _collectionView;
+  _width = CGRectGetWidth(collectionView.bounds);
+  _topInset = collectionView.adjustedContentInset.top;
+  _restingAtTop = fabs(collectionView.contentOffset.y + _topInset) < 0.5;
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context {
+  if (context != MDCCollectionViewRestingTopTrackerContext) {
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    return;
+  }
+  UICollectionView *collectionView = _collectionView;
+  // Offsets UIKit adjusts while the size or top inset changes must not change the state.
+  if (CGRectGetWidth(collectionView.bounds) != _width ||
+      collectionView.adjustedContentInset.top != _topInset) {
+    return;
+  }
+  _restingAtTop = fabs(collectionView.contentOffset.y + _topInset) < 0.5;
+}
+
+@end
+
 @implementation MDCCollectionViewController {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -47,11 +111,8 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
   CGPoint _inkTouchLocation;
   CGFloat _lastLayoutWidth;
   CGFloat _lastAdjustedTopInset;
-  BOOL _restingAtTop;
-  __weak UICollectionView *_scrollObservedCollectionView;
+  MDCCollectionViewRestingTopTracker *_restingTopTracker;
 }
-
-static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionViewControllerContentOffsetContext;
 
 @synthesize collectionViewLayout = _collectionViewLayout;
 
@@ -133,12 +194,6 @@ static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionVie
                  withReuseIdentifier:classIdentifier];
 }
 
-- (void)dealloc {
-  [_scrollObservedCollectionView removeObserver:self
-                                     forKeyPath:NSStringFromSelector(@selector(contentOffset))
-                                        context:MDCCollectionViewControllerContentOffsetContext];
-}
-
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
   [self relayoutAfterSizeChangeIfNeeded];
@@ -157,7 +212,7 @@ static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionVie
 
 - (void)setCollectionView:(__kindof UICollectionView *)collectionView {
   [super setCollectionView:collectionView];
-  [self observeUserScrollingOfCollectionView:collectionView];
+  _restingTopTracker = [[MDCCollectionViewRestingTopTracker alloc] initWithCollectionView:collectionView];
 
   // Reset editor and ink to provided collection view.
   _editor = [[MDCCollectionViewEditor alloc] initWithCollectionView:collectionView];
@@ -180,8 +235,7 @@ static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionVie
 /**
  Folding or unfolding an iPhone Duo, or rotating, can lay a screen out before its size and side safe area
  settle, and some transitions never reach the screen. So this reacts to the final width instead: items are
- re-measured and rebuilt (cells keep subview positions from their old size), and a list that was resting at
- the top stays there when the top inset changes.
+ re-measured, and a list that was resting at the top stays there when the top inset changes.
  */
 - (void)relayoutAfterSizeChangeIfNeeded {
   UICollectionView *collectionView = self.collectionView;
@@ -195,14 +249,14 @@ static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionVie
   _lastAdjustedTopInset = topInset;
 
   if (firstLayout) {
-    _restingAtTop = [self isRestingAtTop];
+    [_restingTopTracker recordGeometry];
     return;
   }
   if (!widthChanged && !topInsetChanged) {
     return;
   }
 
-  BOOL restingAtTop = _restingAtTop;
+  BOOL restingAtTop = _restingTopTracker.restingAtTop;
   if (widthChanged) {
     [self.collectionViewLayout invalidateLayout];
   }
@@ -215,54 +269,17 @@ static void *MDCCollectionViewControllerContentOffsetContext = &MDCCollectionVie
     if (!strongSelf) {
       return;
     }
-    if (widthChanged) {
-      [UIView performWithoutAnimation:^{
-        [strongSelf.collectionView reloadData];
-        [strongSelf.collectionView layoutIfNeeded];
-      }];
-    }
     if (restingAtTop) {
       [strongSelf scrollToRestingTop];
     }
+    [strongSelf->_restingTopTracker recordGeometry];
   });
-}
-
-- (BOOL)isRestingAtTop {
-  UICollectionView *collectionView = self.collectionView;
-  return fabs(collectionView.contentOffset.y + collectionView.adjustedContentInset.top) < 0.5;
 }
 
 - (void)scrollToRestingTop {
   UICollectionView *collectionView = self.collectionView;
   collectionView.contentOffset =
       CGPointMake(collectionView.contentOffset.x, -collectionView.adjustedContentInset.top);
-}
-
-/** Only scrolling the user does counts; offsets UIKit adjusts during a size change must not change the state. */
-- (void)observeUserScrollingOfCollectionView:(UICollectionView *)collectionView {
-  NSString *keyPath = NSStringFromSelector(@selector(contentOffset));
-  [_scrollObservedCollectionView removeObserver:self
-                                     forKeyPath:keyPath
-                                        context:MDCCollectionViewControllerContentOffsetContext];
-  _scrollObservedCollectionView = collectionView;
-  [collectionView addObserver:self
-                   forKeyPath:keyPath
-                      options:0
-                      context:MDCCollectionViewControllerContentOffsetContext];
-}
-
-- (void)observeValueForKeyPath:(NSString *)keyPath
-                      ofObject:(id)object
-                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
-                       context:(void *)context {
-  if (context != MDCCollectionViewControllerContentOffsetContext) {
-    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-    return;
-  }
-  UICollectionView *collectionView = self.collectionView;
-  if (object == collectionView && (collectionView.isTracking || collectionView.isDecelerating)) {
-    _restingAtTop = [self isRestingAtTop];
-  }
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {

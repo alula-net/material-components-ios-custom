@@ -168,6 +168,12 @@ static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewResti
   _styler = [[MDCCollectionViewStyler alloc] initWithCollectionView:self.collectionView];
   _styler.delegate = self;
 
+  // A collection view created by -loadView (e.g. from a storyboard) never goes through the setter.
+  if (!_restingTopTracker) {
+    _restingTopTracker =
+        [[MDCCollectionViewRestingTopTracker alloc] initWithCollectionView:self.collectionView];
+  }
+
   _editor = [[MDCCollectionViewEditor alloc] initWithCollectionView:self.collectionView];
   _editor.delegate = self;
 

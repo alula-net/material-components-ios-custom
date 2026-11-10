@@ -35,6 +35,12 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 @property(nonatomic, assign) BOOL currentlyActiveInk;
 @end
 
+/** The width left for items after the adjusted insets, which is what a size change re-lays out for. */
+static CGFloat MDCCollectionViewUsableWidth(UICollectionView *collectionView) {
+  return CGRectGetWidth(
+      UIEdgeInsetsInsetRect(collectionView.bounds, collectionView.adjustedContentInset));
+}
+
 /**
  Records whether a collection view rests at its top after each scroll, user or programmatic. It is a separate
  object so subclasses that override KVO without calling super can't swallow its notifications.
@@ -75,7 +81,7 @@ static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewResti
 
 - (void)recordGeometry {
   UICollectionView *collectionView = _collectionView;
-  _width = CGRectGetWidth(collectionView.bounds);
+  _width = MDCCollectionViewUsableWidth(collectionView);
   _topInset = collectionView.adjustedContentInset.top;
   _restingAtTop = fabs(collectionView.contentOffset.y + _topInset) < 0.5;
 }
@@ -90,7 +96,7 @@ static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewResti
   }
   UICollectionView *collectionView = _collectionView;
   // Offsets UIKit adjusts while the size or top inset changes must not change the state.
-  if (CGRectGetWidth(collectionView.bounds) != _width ||
+  if (MDCCollectionViewUsableWidth(collectionView) != _width ||
       collectionView.adjustedContentInset.top != _topInset) {
     return;
   }
@@ -245,9 +251,8 @@ static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewResti
  */
 - (void)relayoutAfterSizeChangeIfNeeded {
   UICollectionView *collectionView = self.collectionView;
-  UIEdgeInsets insets = collectionView.adjustedContentInset;
-  CGFloat width = CGRectGetWidth(UIEdgeInsetsInsetRect(collectionView.bounds, insets));
-  CGFloat topInset = insets.top;
+  CGFloat width = MDCCollectionViewUsableWidth(collectionView);
+  CGFloat topInset = collectionView.adjustedContentInset.top;
   BOOL firstLayout = (_lastLayoutWidth == 0);
   BOOL widthChanged = !firstLayout && width != _lastLayoutWidth;
   BOOL topInsetChanged = !firstLayout && topInset != _lastAdjustedTopInset;

@@ -711,7 +711,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 - (void)setLeadingBarButtonItems:(NSArray<UIBarButtonItem *> *)leadingBarButtonItems {
   _leadingBarButtonItems = [leadingBarButtonItems copy];
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 
@@ -760,8 +760,15 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _backItem = backItem;
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
+}
+
+- (void)mdc_updateLeadingButtonBarItems {
+  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  if (self.displayedLeadingBarButtonItemsDidChangeBlock) {
+    self.displayedLeadingBarButtonItemsDidChangeBlock();
+  }
 }
 
 - (NSArray<UIBarButtonItem *> *)displayedLeadingBarButtonItems {
@@ -781,7 +788,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _hidesBackButton = hidesBackButton;
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 
@@ -790,7 +797,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _leadingItemsSupplementBackButton = leadingItemsSupplementBackButton;
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 

@@ -254,6 +254,9 @@ IB_DESIGNABLE
 /** The back button and leading items the leading button bar shows. */
 @property(nonatomic, readonly, nonnull) NSArray<UIBarButtonItem *> *displayedLeadingBarButtonItems;
 
+/** Called after the back button or leading items the leading button bar shows change. */
+@property(nonatomic, copy, nullable) void (^displayedLeadingBarButtonItemsDidChangeBlock)(void);
+
 /** If YES, the leading button bar is hidden and the title can use its space. Defaults to NO. */
 @property(nonatomic) BOOL hidesLeadingButtonBar;
 

@@ -75,6 +75,11 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
 
   self.headerStackView.translatesAutoresizingMaskIntoConstraints = NO;
   self.headerStackView.topBar = self.navigationBar;
+
+  // Item changes only lay out the navigation bar, not this controller's view.
+  self.navigationBar.displayedLeadingBarButtonItemsDidChangeBlock = ^{
+    [weakSelf updateSideBarBackButton];
+  };
 }
 
 #pragma mark - Properties
@@ -353,8 +358,6 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
     [NSLayoutConstraint activateConstraints:@[
       [button.topAnchor constraintEqualToAnchor:sideBar.topAnchor],
       [button.centerXAnchor constraintEqualToAnchor:sideBar.centerXAnchor],
-      [button.widthAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
-      [button.heightAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
     ]];
   }
   _sideBarBackItem = item;
@@ -403,6 +406,10 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
       configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
       UIButton *button = [UIButton buttonWithConfiguration:configuration primaryAction:nil];
       button.translatesAutoresizingMaskIntoConstraints = NO;
+      [NSLayoutConstraint activateConstraints:@[
+        [button.widthAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
+        [button.heightAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
+      ]];
       [button addTarget:self
                     action:@selector(didTapSideBarBackButton:)
           forControlEvents:UIControlEventTouchUpInside];
@@ -418,8 +425,10 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
 - (void)didTapSideBarBackButton:(UIButton *)sender {
   UIBarButtonItem *item = _sideBarBackItem;
   if (item.action && item.enabled) {
+    // A nil target is looked up from the navigation bar, as the button bar does.
+    id target = item.target ?: [self.navigationBar targetForAction:item.action withSender:item];
     [[UIApplication mdc_safeSharedApplication] sendAction:item.action
-                                                       to:item.target
+                                                       to:target
                                                      from:item
                                                  forEvent:nil];
   }

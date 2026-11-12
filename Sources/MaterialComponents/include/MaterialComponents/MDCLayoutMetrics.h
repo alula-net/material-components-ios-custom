@@ -41,3 +41,12 @@ FOUNDATION_EXPORT CGFloat MDCStatusPillBandOverlap(UIWindow *_Nullable window);
 
 /** Width a navigation bar in that band keeps clear for the clock pill. */
 FOUNDATION_EXPORT const CGFloat MDCStatusPillWidth;
+
+/**
+ The iPhone Duo's system bar column below the status pill on the right edge, in @c view's
+ coordinates; CGRectNull when @c view is not in a window that has one.
+ */
+FOUNDATION_EXPORT CGRect MDCSideBarFrameInView(UIView *_Nonnull view);
+
+/** A layout guide on @c view that follows that column; nil on systems without one. */
+FOUNDATION_EXPORT UILayoutGuide *_Nullable MDCSideBarLayoutGuide(UIView *_Nonnull view);

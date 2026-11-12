@@ -33,9 +33,13 @@ static NSString *const kBarStackKey = @"barStack";
 // The Bundle for string resources.
 static NSString *const kMaterialAppBarBundle = @"MaterialAppBar.bundle";
 
+static const CGFloat kSideBarBackButtonDiameter = 48;
+
 @implementation MDCAppBarViewController {
   NSLayoutConstraint *_verticalConstraint;
   NSLayoutConstraint *_topSafeAreaConstraint;
+  UIButton *_sideBarBackButton;
+  __weak UIBarButtonItem *_sideBarBackItem;
 }
 
 - (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
@@ -240,6 +244,21 @@ static NSString *const kMaterialAppBarBundle = @"MaterialAppBar.bundle";
       .active = YES;
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+  [super viewDidAppear:animated];
+
+  [self updateSideBarBackButton];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+  [super viewWillDisappear:animated];
+
+  // A host outside this screen's view would otherwise keep showing the button.
+  if (_sideBarBackButton.superview != self.parentViewController.view) {
+    [_sideBarBackButton removeFromSuperview];
+  }
+}
+
 - (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
 
@@ -247,6 +266,12 @@ static NSString *const kMaterialAppBarBundle = @"MaterialAppBar.bundle";
   if (backBarButtonItem && !self.navigationBar.backItem) {
     self.navigationBar.backItem = backBarButtonItem;
   }
+}
+
+- (void)viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+
+  [self updateSideBarBackButton];
 }
 
 - (void)viewWillLayoutSubviews {
@@ -298,6 +323,95 @@ static NSString *const kMaterialAppBarBundle = @"MaterialAppBar.bundle";
     [pvc.navigationController popViewControllerAnimated:YES];
   } else {
     [pvc dismissViewControllerAnimated:YES completion:nil];
+  }
+}
+
+#pragma mark - Side bar back button
+
+// On the iPhone Duo the back button sits in the system bar column under the status pill rather
+// than at the header's leading edge.
+- (void)updateSideBarBackButton {
+  UIView *host = self.headerView.hidden ? nil : [self sideBarBackButtonHost];
+  CGRect sideBarFrame = host ? MDCSideBarFrameInView(host) : CGRectNull;
+  UIBarButtonItem *item = CGRectIsNull(sideBarFrame) ? nil : [self sideBarBackItemCandidate];
+  self.navigationBar.hidesLeadingButtonBar = item != nil;
+  if (!item) {
+    [_sideBarBackButton removeFromSuperview];
+    return;
+  }
+
+  UIButton *button = [self sideBarBackButton];
+  if (!button) {
+    self.navigationBar.hidesLeadingButtonBar = NO;
+    return;
+  }
+  if (button.superview != host) {
+    [host addSubview:button];
+    // Constraints, not a frame: a fold moves the column after this screen's last layout pass.
+    UILayoutGuide *sideBar = MDCSideBarLayoutGuide(host);
+    [NSLayoutConstraint activateConstraints:@[
+      [button.topAnchor constraintEqualToAnchor:sideBar.topAnchor],
+      [button.centerXAnchor constraintEqualToAnchor:sideBar.centerXAnchor],
+      [button.widthAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
+      [button.heightAnchor constraintEqualToConstant:kSideBarBackButtonDiameter],
+    ]];
+  }
+  _sideBarBackItem = item;
+  UIButtonConfiguration *configuration = button.configuration;
+  configuration.image = item.image;
+  button.configuration = configuration;
+  button.accessibilityLabel = item.accessibilityLabel ?: item.title;
+  button.accessibilityIdentifier = item.accessibilityIdentifier;
+  [host bringSubviewToFront:button];
+}
+
+// Headers may clip their bounds and scroll views move their subviews, so the button lives in the
+// closest container above the header that stays put.
+- (nullable UIView *)sideBarBackButtonHost {
+  UIView *host = self.headerView.superview;
+  while ([host isKindOfClass:[UIScrollView class]]) {
+    host = host.superview;
+  }
+  return host;
+}
+
+// Only a lone back or close item moves; a tab's root keeps its leading items in the header.
+- (nullable UIBarButtonItem *)sideBarBackItemCandidate {
+  NSArray<UIBarButtonItem *> *items = self.navigationBar.displayedLeadingBarButtonItems;
+  UIBarButtonItem *item = items.count == 1 ? items.firstObject : nil;
+  if (!item || item.customView || !item.image || !item.action || !item.enabled) {
+    return nil;
+  }
+  UIViewController *parent = self.parentViewController;
+  BOOL isStackRoot = parent.navigationController.viewControllers.firstObject == parent;
+  if (item != self.navigationBar.backItem && isStackRoot && parent.tabBarController) {
+    return nil;
+  }
+  return item;
+}
+
+- (nullable UIButton *)sideBarBackButton {
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (@available(iOS 26.0, *)) {
+    if (!_sideBarBackButton) {
+      UIButtonConfiguration *configuration = [UIButtonConfiguration glassButtonConfiguration];
+      configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+      UIButton *button = [UIButton buttonWithConfiguration:configuration primaryAction:nil];
+      button.translatesAutoresizingMaskIntoConstraints = NO;
+      [button addTarget:self
+                    action:@selector(didTapSideBarBackButton:)
+          forControlEvents:UIControlEventTouchUpInside];
+      _sideBarBackButton = button;
+    }
+  }
+#endif
+  return _sideBarBackButton;
+}
+
+- (void)didTapSideBarBackButton:(UIButton *)sender {
+  UIBarButtonItem *item = _sideBarBackItem;
+  if (item.action) {
+    [UIApplication.sharedApplication sendAction:item.action to:item.target from:item forEvent:nil];
   }
 }
 

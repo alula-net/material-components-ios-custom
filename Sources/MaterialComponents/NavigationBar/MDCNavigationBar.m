@@ -131,6 +131,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 @synthesize leadingBarButtonItems = _leadingBarButtonItems;
 @synthesize trailingBarButtonItems = _trailingBarButtonItems;
 @synthesize hidesBackButton = _hidesBackButton;
+@synthesize hidesLeadingButtonBar = _hidesLeadingButtonBar;
 @synthesize leadingItemsSupplementBackButton = _leadingItemsSupplementBackButton;
 @synthesize titleInsets = _titleInsets;
 @synthesize titleView = _titleView;
@@ -268,7 +269,10 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
         safeAreaInsets.right, self.mdf_effectiveUserInterfaceLayoutDirection);
   }
 
-  CGSize leadingButtonBarSize = [_leadingButtonBar sizeThatFits:self.bounds.size];
+  _leadingButtonBar.hidden = self.hidesLeadingButtonBar;
+  CGSize leadingButtonBarSize = self.hidesLeadingButtonBar
+                                    ? CGSizeMake(0, CGRectGetHeight(self.bounds))
+                                    : [_leadingButtonBar sizeThatFits:self.bounds.size];
   CGRect leadingButtonBarFrame =
       CGRectMake(RTLFriendlySafeAreaInsets.left, CGRectGetMinY(self.bounds),
                  leadingButtonBarSize.width, leadingButtonBarSize.height);
@@ -757,6 +761,18 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   }
   _backItem = backItem;
   _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self setNeedsLayout];
+}
+
+- (NSArray<UIBarButtonItem *> *)displayedLeadingBarButtonItems {
+  return [self mdc_buttonItemsForLeadingBar];
+}
+
+- (void)setHidesLeadingButtonBar:(BOOL)hidesLeadingButtonBar {
+  if (_hidesLeadingButtonBar == hidesLeadingButtonBar) {
+    return;
+  }
+  _hidesLeadingButtonBar = hidesLeadingButtonBar;
   [self setNeedsLayout];
 }
 

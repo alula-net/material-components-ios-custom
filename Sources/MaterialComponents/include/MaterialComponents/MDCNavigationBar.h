@@ -251,6 +251,12 @@ IB_DESIGNABLE
 /*  If YES, this navigation bar will hide the back button. */
 @property(nonatomic) BOOL hidesBackButton;
 
+/** The back button and leading items the leading button bar shows. */
+@property(nonatomic, readonly, nonnull) NSArray<UIBarButtonItem *> *displayedLeadingBarButtonItems;
+
+/** If YES, the leading button bar is hidden and the title can use its space. Defaults to NO. */
+@property(nonatomic) BOOL hidesLeadingButtonBar;
+
 /* Use these properties to set multiple items in a navigation bar.
  The single properties (leadingBarButtonItem and trailingBarButtonItem) refer to the first item in
  the respective array of items.

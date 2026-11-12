@@ -21,6 +21,7 @@
 #import "MaterialButtonBar.h"
 #import "MaterialMath.h"
 #import "MaterialTypography.h"
+#import "MaterialUIMetrics.h"
 
 static const NSUInteger kTitleFontSize = 20;
 static const CGFloat kNavigationBarDefaultHeight = 56;
@@ -130,6 +131,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 @synthesize leadingBarButtonItems = _leadingBarButtonItems;
 @synthesize trailingBarButtonItems = _trailingBarButtonItems;
 @synthesize hidesBackButton = _hidesBackButton;
+@synthesize hidesLeadingButtonBar = _hidesLeadingButtonBar;
 @synthesize leadingItemsSupplementBackButton = _leadingItemsSupplementBackButton;
 @synthesize titleInsets = _titleInsets;
 @synthesize titleView = _titleView;
@@ -244,19 +246,33 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 #pragma mark UIView Overrides
 
+- (UIEdgeInsets)mdc_layoutSafeAreaInsets {
+  UIEdgeInsets insets = self.safeAreaInsets;
+  UIWindow *window = self.window;
+  if (window && MDCStatusPillBandOverlap(window) > 0 &&
+      CGRectGetMinY([self convertRect:self.bounds toView:window]) < window.safeAreaInsets.top) {
+    insets.right += MDCStatusPillWidth;
+  }
+  return insets;
+}
+
 - (void)layoutSubviews {
   [super layoutSubviews];
 
+  UIEdgeInsets safeAreaInsets = [self mdc_layoutSafeAreaInsets];
   // For pre iOS 11 devices, it's safe to assume that the Safe Area insets' left and right
   // values are zero. DO NOT use this to get the top or bottom Safe Area insets.
   UIEdgeInsets RTLFriendlySafeAreaInsets = UIEdgeInsetsZero;
   if (@available(iOS 11.0, *)) {
     RTLFriendlySafeAreaInsets = MDFInsetsMakeWithLayoutDirection(
-        self.safeAreaInsets.top, self.safeAreaInsets.left, self.safeAreaInsets.bottom,
-        self.safeAreaInsets.right, self.mdf_effectiveUserInterfaceLayoutDirection);
+        safeAreaInsets.top, safeAreaInsets.left, safeAreaInsets.bottom,
+        safeAreaInsets.right, self.mdf_effectiveUserInterfaceLayoutDirection);
   }
 
-  CGSize leadingButtonBarSize = [_leadingButtonBar sizeThatFits:self.bounds.size];
+  _leadingButtonBar.hidden = self.hidesLeadingButtonBar;
+  CGSize leadingButtonBarSize = self.hidesLeadingButtonBar
+                                    ? CGSizeMake(0, CGRectGetHeight(self.bounds))
+                                    : [_leadingButtonBar sizeThatFits:self.bounds.size];
   CGRect leadingButtonBarFrame =
       CGRectMake(RTLFriendlySafeAreaInsets.left, CGRectGetMinY(self.bounds),
                  leadingButtonBarSize.width, leadingButtonBarSize.height);
@@ -280,8 +296,8 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   textFrame.origin.x += _leadingButtonBar.frame.size.width;
   textFrame.size.width -= _leadingButtonBar.frame.size.width + _trailingButtonBar.frame.size.width;
   if (@available(iOS 11.0, *)) {
-    textFrame.origin.x += self.safeAreaInsets.left;
-    textFrame.size.width -= self.safeAreaInsets.left + self.safeAreaInsets.right;
+    textFrame.origin.x += safeAreaInsets.left;
+    textFrame.size.width -= safeAreaInsets.left + safeAreaInsets.right;
   }
 
   // Layout TitleLabel
@@ -325,7 +341,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
       availableWidth -=
           MAX(_leadingButtonBar.frame.size.width, _trailingButtonBar.frame.size.width) * 2;
       if (@available(iOS 11.0, *)) {
-        availableWidth -= self.safeAreaInsets.left + self.safeAreaInsets.right;
+        availableWidth -= safeAreaInsets.left + safeAreaInsets.right;
       }
       titleViewFrame.size.width = availableWidth;
       titleViewFrame = [self mdc_frameAlignedHorizontally:titleViewFrame
@@ -695,7 +711,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 - (void)setLeadingBarButtonItems:(NSArray<UIBarButtonItem *> *)leadingBarButtonItems {
   _leadingBarButtonItems = [leadingBarButtonItems copy];
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 
@@ -744,7 +760,26 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _backItem = backItem;
+  [self mdc_updateLeadingButtonBarItems];
+  [self setNeedsLayout];
+}
+
+- (void)mdc_updateLeadingButtonBarItems {
   _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  if (self.displayedLeadingBarButtonItemsDidChangeBlock) {
+    self.displayedLeadingBarButtonItemsDidChangeBlock();
+  }
+}
+
+- (NSArray<UIBarButtonItem *> *)displayedLeadingBarButtonItems {
+  return [self mdc_buttonItemsForLeadingBar];
+}
+
+- (void)setHidesLeadingButtonBar:(BOOL)hidesLeadingButtonBar {
+  if (_hidesLeadingButtonBar == hidesLeadingButtonBar) {
+    return;
+  }
+  _hidesLeadingButtonBar = hidesLeadingButtonBar;
   [self setNeedsLayout];
 }
 
@@ -753,7 +788,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _hidesBackButton = hidesBackButton;
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 
@@ -762,7 +797,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _leadingItemsSupplementBackButton = leadingItemsSupplementBackButton;
-  _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
+  [self mdc_updateLeadingButtonBarItems];
   [self setNeedsLayout];
 }
 

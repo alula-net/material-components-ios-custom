@@ -35,3 +35,21 @@ extern const CGFloat MDCFixedStatusBarHeightOnPreiPhoneXDevices;
  with hardware safe areas (iPhone X).
  */
 FOUNDATION_EXPORT CGFloat MDCDeviceTopSafeAreaInset(void);
+
+/**
+ How far a header moves up into the unfolded iPhone Duo's status band, so its navigation bar lines
+ up with the clock pill; 0 elsewhere.
+ */
+FOUNDATION_EXPORT CGFloat MDCStatusPillBandOverlap(UIWindow *_Nullable window);
+
+/** Width a navigation bar in that band keeps clear for the clock pill. */
+FOUNDATION_EXPORT const CGFloat MDCStatusPillWidth;
+
+/**
+ The iPhone Duo's system bar column below the status pill on the right edge, in @c view's
+ coordinates; CGRectNull when @c view is not in a window that has one or doesn't cover it.
+ */
+FOUNDATION_EXPORT CGRect MDCSideBarFrameInView(UIView *_Nonnull view);
+
+/** A layout guide on @c view that follows that column; nil on systems without one. */
+FOUNDATION_EXPORT UILayoutGuide *_Nullable MDCSideBarLayoutGuide(UIView *_Nonnull view);

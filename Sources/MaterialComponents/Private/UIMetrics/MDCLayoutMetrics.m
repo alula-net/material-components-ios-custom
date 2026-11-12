@@ -58,6 +58,23 @@ CGFloat MDCDeviceTopSafeAreaInset(void) {
   return topInset;
 }
 
+// The system centres the clock pill on its top bar region; a bar resting on the band's bottom sits
+// lower than that, so the header rises by the difference.
+static CGFloat MDCStatusPillBarLift(UIWindow *window, CGFloat topInset) {
+#if defined(__IPHONE_27_1) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_1
+  if (@available(iOS 27.1, *)) {
+    UIViewLayoutRegion *region = [UIViewLayoutRegion layoutRegionForBarOnEdge:UIRectEdgeTop
+                                                                       extent:kSideBarExtent];
+    CGRect topBar = [window layoutGuideForLayoutRegion:region].layoutFrame;
+    if (!CGRectIsEmpty(topBar)) {
+      CGFloat barMidY = topInset - kStatusPillNavigationBarHeight / 2;
+      return MAX(0, barMidY - CGRectGetMidY(topBar));
+    }
+  }
+#endif
+  return 0;
+}
+
 CGFloat MDCStatusPillBandOverlap(UIWindow *window) {
   if (@available(iOS 13.0, *)) {
     UIWindow *hostWindow = window ?: [UIApplication mdc_safeSharedApplication].keyWindow;
@@ -66,7 +83,7 @@ CGFloat MDCStatusPillBandOverlap(UIWindow *window) {
         hostWindow.windowScene.statusBarManager.statusBarFrame.size.height ?: topInset;
     if (CGRectGetWidth(hostWindow.bounds) >= kStatusPillMinimumWindowWidth &&
         topInset > kStatusPillNavigationBarHeight && statusBarHeight < topInset / 2) {
-      return kStatusPillNavigationBarHeight;
+      return kStatusPillNavigationBarHeight + MDCStatusPillBarLift(hostWindow, topInset);
     }
   }
   return 0;

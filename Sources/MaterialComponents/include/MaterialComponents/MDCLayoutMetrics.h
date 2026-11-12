@@ -47,7 +47,7 @@ FOUNDATION_EXPORT const CGFloat MDCStatusPillWidth;
 
 /**
  The iPhone Duo's system bar column below the status pill on the right edge, in @c view's
- coordinates; CGRectNull when @c view is not in a window that has one.
+ coordinates; CGRectNull when @c view is not in a window that has one or doesn't cover it.
  */
 FOUNDATION_EXPORT CGRect MDCSideBarFrameInView(UIView *_Nonnull view);
 

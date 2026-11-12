@@ -114,7 +114,12 @@ CGRect MDCSideBarFrameInView(UIView *view) {
         safeAreaInsets.right < CGRectGetWidth(frame)) {
       return CGRectNull;
     }
-    return [window convertRect:frame toView:view];
+    CGRect frameInView = [window convertRect:frame toView:view];
+    // A sheet or other inset presentation doesn't reach the column.
+    if (!CGRectContainsRect(CGRectInset(view.bounds, -1, -1), frameInView)) {
+      return CGRectNull;
+    }
+    return frameInView;
   }
 #endif
   return CGRectNull;

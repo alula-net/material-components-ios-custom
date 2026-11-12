@@ -16,6 +16,7 @@
 
 #import "MDCAppBarContainerViewController.h"
 
+#import "MaterialApplication.h"
 #import "MaterialAppBarStrings.h"
 #import "MaterialAppBarStrings_table.h"
 #import "MDCAppBarViewControllerAccessibilityPerformEscapeDelegate.h"
@@ -379,7 +380,11 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
 - (nullable UIBarButtonItem *)sideBarBackItemCandidate {
   NSArray<UIBarButtonItem *> *items = self.navigationBar.displayedLeadingBarButtonItems;
   UIBarButtonItem *item = items.count == 1 ? items.firstObject : nil;
-  if (!item || item.customView || !item.image || !item.action || !item.enabled) {
+  if (!item || item.customView || item.menu || !item.image || !item.action || !item.enabled) {
+    return nil;
+  }
+  // The button bar also passes the tapped button as a third argument, which this button can't.
+  if ([NSStringFromSelector(item.action) componentsSeparatedByString:@":"].count > 3) {
     return nil;
   }
   UIViewController *parent = self.parentViewController;
@@ -401,6 +406,8 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
       [button addTarget:self
                     action:@selector(didTapSideBarBackButton:)
           forControlEvents:UIControlEventTouchUpInside];
+      // Fades with the header when it shifts off screen, as the bar's own items do.
+      [self.headerView hideViewWhenShifted:button];
       _sideBarBackButton = button;
     }
   }
@@ -410,8 +417,11 @@ static const CGFloat kSideBarBackButtonDiameter = 48;
 
 - (void)didTapSideBarBackButton:(UIButton *)sender {
   UIBarButtonItem *item = _sideBarBackItem;
-  if (item.action) {
-    [UIApplication.sharedApplication sendAction:item.action to:item.target from:item forEvent:nil];
+  if (item.action && item.enabled) {
+    [[UIApplication mdc_safeSharedApplication] sendAction:item.action
+                                                       to:item.target
+                                                     from:item
+                                                 forEvent:nil];
   }
 }
 

@@ -303,6 +303,21 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     textFrame.origin.x += safeAreaInsets.left;
     textFrame.size.width -= safeAreaInsets.left + safeAreaInsets.right;
   }
+  // Beside the status pill, centre a centred title on the bar like the content below rather than on
+  // what the pill leaves free, unless that would truncate it.
+  if (self.titleAlignment == MDCNavigationBarTitleAlignmentCenter &&
+      safeAreaInsets.right > self.safeAreaInsets.right) {
+    CGFloat midX = CGRectGetMidX(self.bounds);
+    CGFloat halfWidth =
+        MAX(0, MIN(midX - CGRectGetMinX(textFrame), CGRectGetMaxX(textFrame) - midX));
+    CGFloat titleWidth =
+        self.titleView ? self.titleView.intrinsicContentSize.width
+                       : [_titleLabel sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)].width;
+    if (titleWidth == UIViewNoIntrinsicMetric || titleWidth <= 2 * halfWidth) {
+      textFrame.origin.x = midX - halfWidth;
+      textFrame.size.width = 2 * halfWidth;
+    }
+  }
 
   // Layout TitleLabel
   NSMutableParagraphStyle *paraStyle = [[NSMutableParagraphStyle alloc] init];

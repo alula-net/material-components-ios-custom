@@ -498,8 +498,14 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
       UIButton *button = (UIButton *)self->_sideBarStack.arrangedSubviews[index];
       UIButton *customButton = SideBarCustomButton(item);
       UIButtonConfiguration *configuration = button.configuration;
-      configuration.image =
+      UIImage *image =
           customButton ? [customButton imageForState:UIControlStateNormal] : item.image;
+      // A bar tints an item's image left on automatic rendering; the glass button would draw it as
+      // is. A custom button's image is drawn as is in the bar too.
+      if (!customButton && image.renderingMode == UIImageRenderingModeAutomatic) {
+        image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+      }
+      configuration.image = image;
       configuration.title = configuration.image ? nil : item.title;
       button.configuration = configuration;
       button.tag = (NSInteger)index;

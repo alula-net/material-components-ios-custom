@@ -254,11 +254,14 @@ IB_DESIGNABLE
 /** The back button and leading items the leading button bar shows. */
 @property(nonatomic, readonly, nonnull) NSArray<UIBarButtonItem *> *displayedLeadingBarButtonItems;
 
-/** Called after the back button or leading items the leading button bar shows change. */
-@property(nonatomic, copy, nullable) void (^displayedLeadingBarButtonItemsDidChangeBlock)(void);
+/** Called after the back button, leading items or trailing items the button bars show change. */
+@property(nonatomic, copy, nullable) void (^displayedBarButtonItemsDidChangeBlock)(void);
 
 /** If YES, the leading button bar is hidden and the title can use its space. Defaults to NO. */
 @property(nonatomic) BOOL hidesLeadingButtonBar;
+
+/** If YES, the trailing button bar is hidden and the title can use its space. Defaults to NO. */
+@property(nonatomic) BOOL hidesTrailingButtonBar;
 
 /* Use these properties to set multiple items in a navigation bar.
  The single properties (leadingBarButtonItem and trailingBarButtonItem) refer to the first item in

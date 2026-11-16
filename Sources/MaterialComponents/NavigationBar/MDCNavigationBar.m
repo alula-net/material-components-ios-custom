@@ -132,6 +132,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 @synthesize trailingBarButtonItems = _trailingBarButtonItems;
 @synthesize hidesBackButton = _hidesBackButton;
 @synthesize hidesLeadingButtonBar = _hidesLeadingButtonBar;
+@synthesize hidesTrailingButtonBar = _hidesTrailingButtonBar;
 @synthesize leadingItemsSupplementBackButton = _leadingItemsSupplementBackButton;
 @synthesize titleInsets = _titleInsets;
 @synthesize titleView = _titleView;
@@ -276,7 +277,10 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   CGRect leadingButtonBarFrame =
       CGRectMake(RTLFriendlySafeAreaInsets.left, CGRectGetMinY(self.bounds),
                  leadingButtonBarSize.width, leadingButtonBarSize.height);
-  CGSize trailingButtonBarSize = [_trailingButtonBar sizeThatFits:self.bounds.size];
+  _trailingButtonBar.hidden = self.hidesTrailingButtonBar;
+  CGSize trailingButtonBarSize = self.hidesTrailingButtonBar
+                                     ? CGSizeMake(0, CGRectGetHeight(self.bounds))
+                                     : [_trailingButtonBar sizeThatFits:self.bounds.size];
   CGFloat xOrigin =
       CGRectGetWidth(self.bounds) - RTLFriendlySafeAreaInsets.right - trailingButtonBarSize.width;
   CGRect trailingButtonBarFrame =
@@ -718,6 +722,9 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 - (void)setTrailingBarButtonItems:(NSArray<UIBarButtonItem *> *)trailingBarButtonItems {
   _trailingBarButtonItems = [trailingBarButtonItems copy];
   _trailingButtonBar.items = _trailingBarButtonItems;
+  if (self.displayedBarButtonItemsDidChangeBlock) {
+    self.displayedBarButtonItemsDidChangeBlock();
+  }
   [self setNeedsLayout];
 }
 
@@ -766,8 +773,8 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 - (void)mdc_updateLeadingButtonBarItems {
   _leadingButtonBar.items = [self mdc_buttonItemsForLeadingBar];
-  if (self.displayedLeadingBarButtonItemsDidChangeBlock) {
-    self.displayedLeadingBarButtonItemsDidChangeBlock();
+  if (self.displayedBarButtonItemsDidChangeBlock) {
+    self.displayedBarButtonItemsDidChangeBlock();
   }
 }
 
@@ -780,6 +787,14 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
     return;
   }
   _hidesLeadingButtonBar = hidesLeadingButtonBar;
+  [self setNeedsLayout];
+}
+
+- (void)setHidesTrailingButtonBar:(BOOL)hidesTrailingButtonBar {
+  if (_hidesTrailingButtonBar == hidesTrailingButtonBar) {
+    return;
+  }
+  _hidesTrailingButtonBar = hidesTrailingButtonBar;
   [self setNeedsLayout];
 }
 

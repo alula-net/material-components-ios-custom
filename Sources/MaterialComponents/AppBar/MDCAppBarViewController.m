@@ -424,7 +424,7 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
 }
 
 // Items without an action or menu are spacers and are dropped; nil when an item can only be drawn
-// by the header.
+// by the header. Text buttons such as Done or Share stay in the header too.
 - (nullable NSArray<UIBarButtonItem *> *)sideBarItemsFrom:(NSArray<UIBarButtonItem *> *)items {
   NSMutableArray<UIBarButtonItem *> *sideBarItems = [NSMutableArray array];
   for (UIBarButtonItem *item in items) {
@@ -435,7 +435,7 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
     if (!item.action && !item.menu) {
       continue;
     }
-    if (SideBarCustomView(item) || (!item.image && item.title.length == 0) ||
+    if (SideBarCustomView(item) || !item.image ||
         [self sideBarCannotSendAction:item]) {
       return nil;
     }
@@ -506,7 +506,6 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
         image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
       }
       configuration.image = image;
-      configuration.title = configuration.image ? nil : item.title;
       button.configuration = configuration;
       button.tag = (NSInteger)index;
       button.enabled = customButton ? customButton.enabled : item.enabled;

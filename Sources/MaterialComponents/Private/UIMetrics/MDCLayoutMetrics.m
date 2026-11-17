@@ -17,6 +17,11 @@
 #import "MaterialApplication.h"
 
 const CGFloat MDCFixedStatusBarHeightOnPreiPhoneXDevices = 20;
+const CGFloat MDCStatusPillWidth = 132;
+
+static const CGFloat kStatusPillNavigationBarHeight = 56;
+static const CGFloat kStatusPillMinimumWindowWidth = 600;
+static const CGFloat kSideBarExtent = 48;
 
 static BOOL HasHardwareSafeAreas(void) {
   static BOOL hasHardwareSafeAreas = NO;
@@ -51,4 +56,71 @@ CGFloat MDCDeviceTopSafeAreaInset(void) {
     }
   }
   return topInset;
+}
+
+// The system centres the clock pill on its top bar region; a bar resting on the band's bottom sits
+// lower than that, so the header rises by the difference.
+static CGFloat MDCStatusPillBarLift(UIWindow *window, CGFloat topInset) {
+#if defined(__IPHONE_27_1) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_1
+  if (@available(iOS 27.1, *)) {
+    UIViewLayoutRegion *region = [UIViewLayoutRegion layoutRegionForBarOnEdge:UIRectEdgeTop
+                                                                       extent:kSideBarExtent];
+    CGRect topBar = [window layoutGuideForLayoutRegion:region].layoutFrame;
+    if (!CGRectIsEmpty(topBar)) {
+      CGFloat barMidY = topInset - kStatusPillNavigationBarHeight / 2;
+      return MAX(0, barMidY - CGRectGetMidY(topBar));
+    }
+  }
+#endif
+  return 0;
+}
+
+CGFloat MDCStatusPillBandOverlap(UIWindow *window) {
+  if (@available(iOS 13.0, *)) {
+    UIWindow *hostWindow = window ?: [UIApplication mdc_safeSharedApplication].keyWindow;
+    CGFloat topInset = hostWindow.safeAreaInsets.top;
+    CGFloat statusBarHeight =
+        hostWindow.windowScene.statusBarManager.statusBarFrame.size.height ?: topInset;
+    if (CGRectGetWidth(hostWindow.bounds) >= kStatusPillMinimumWindowWidth &&
+        topInset > kStatusPillNavigationBarHeight && statusBarHeight < topInset / 2) {
+      return kStatusPillNavigationBarHeight + MDCStatusPillBarLift(hostWindow, topInset);
+    }
+  }
+  return 0;
+}
+
+UILayoutGuide *MDCSideBarLayoutGuide(UIView *view) {
+#if defined(__IPHONE_27_1) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_1
+  if (@available(iOS 27.1, *)) {
+    UIViewLayoutRegion *region = [UIViewLayoutRegion layoutRegionForBarOnEdge:UIRectEdgeRight
+                                                                       extent:kSideBarExtent];
+    return [view layoutGuideForLayoutRegion:region];
+  }
+#endif
+  return nil;
+}
+
+CGRect MDCSideBarFrameInView(UIView *view) {
+#if defined(__IPHONE_27_1) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_1
+  if (@available(iOS 27.1, *)) {
+    UIWindow *window = view.window;
+    if (!window) {
+      return CGRectNull;
+    }
+    CGRect frame = MDCSideBarLayoutGuide(window).layoutFrame;
+    UIEdgeInsets safeAreaInsets = window.safeAreaInsets;
+    // Other iPhones report the region over the content; the Duo's sits in its own right inset.
+    if (CGRectIsEmpty(frame) || safeAreaInsets.left > 0 ||
+        safeAreaInsets.right < CGRectGetWidth(frame)) {
+      return CGRectNull;
+    }
+    CGRect frameInView = [window convertRect:frame toView:view];
+    // A sheet or other inset presentation doesn't reach the column.
+    if (!CGRectContainsRect(CGRectInset(view.bounds, -1, -1), frameInView)) {
+      return CGRectNull;
+    }
+    return frameInView;
+  }
+#endif
+  return CGRectNull;
 }

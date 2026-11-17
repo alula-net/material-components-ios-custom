@@ -35,6 +35,76 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 @property(nonatomic, assign) BOOL currentlyActiveInk;
 @end
 
+/** The width left for items after the adjusted insets, which is what a size change re-lays out for. */
+static CGFloat MDCCollectionViewUsableWidth(UICollectionView *collectionView) {
+  return CGRectGetWidth(
+      UIEdgeInsetsInsetRect(collectionView.bounds, collectionView.adjustedContentInset));
+}
+
+/**
+ Records whether a collection view rests at its top after each scroll, user or programmatic. It is a separate
+ object so subclasses that override KVO without calling super can't swallow its notifications.
+ */
+@interface MDCCollectionViewRestingTopTracker : NSObject
+@property(nonatomic, readonly) BOOL restingAtTop;
+- (instancetype)initWithCollectionView:(UICollectionView *)collectionView;
+/** Records the current position and the geometry later offset changes are compared against. */
+- (void)recordGeometry;
+@end
+
+@implementation MDCCollectionViewRestingTopTracker {
+  __weak UICollectionView *_collectionView;
+  CGFloat _width;
+  CGFloat _topInset;
+}
+
+static void *MDCCollectionViewRestingTopTrackerContext = &MDCCollectionViewRestingTopTrackerContext;
+
+- (instancetype)initWithCollectionView:(UICollectionView *)collectionView {
+  self = [super init];
+  if (self) {
+    _collectionView = collectionView;
+    [collectionView addObserver:self
+                     forKeyPath:NSStringFromSelector(@selector(contentOffset))
+                        options:0
+                        context:MDCCollectionViewRestingTopTrackerContext];
+    [self recordGeometry];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  [_collectionView removeObserver:self
+                       forKeyPath:NSStringFromSelector(@selector(contentOffset))
+                          context:MDCCollectionViewRestingTopTrackerContext];
+}
+
+- (void)recordGeometry {
+  UICollectionView *collectionView = _collectionView;
+  _width = MDCCollectionViewUsableWidth(collectionView);
+  _topInset = collectionView.adjustedContentInset.top;
+  _restingAtTop = fabs(collectionView.contentOffset.y + _topInset) < 0.5;
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context {
+  if (context != MDCCollectionViewRestingTopTrackerContext) {
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    return;
+  }
+  UICollectionView *collectionView = _collectionView;
+  // Offsets UIKit adjusts while the size or top inset changes must not change the state.
+  if (MDCCollectionViewUsableWidth(collectionView) != _width ||
+      collectionView.adjustedContentInset.top != _topInset) {
+    return;
+  }
+  _restingAtTop = fabs(collectionView.contentOffset.y + _topInset) < 0.5;
+}
+
+@end
+
 @implementation MDCCollectionViewController {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -45,6 +115,9 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
   MDCCollectionInfoBarView *_footerInfoBar;
   BOOL _headerInfoBarDismissed;
   CGPoint _inkTouchLocation;
+  CGFloat _lastLayoutWidth;
+  CGFloat _lastAdjustedTopInset;
+  MDCCollectionViewRestingTopTracker *_restingTopTracker;
 }
 
 @synthesize collectionViewLayout = _collectionViewLayout;
@@ -101,6 +174,12 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
   _styler = [[MDCCollectionViewStyler alloc] initWithCollectionView:self.collectionView];
   _styler.delegate = self;
 
+  // A collection view created by -loadView (e.g. from a storyboard) never goes through the setter.
+  if (!_restingTopTracker) {
+    _restingTopTracker =
+        [[MDCCollectionViewRestingTopTracker alloc] initWithCollectionView:self.collectionView];
+  }
+
   _editor = [[MDCCollectionViewEditor alloc] initWithCollectionView:self.collectionView];
   _editor.delegate = self;
 
@@ -129,6 +208,7 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
+  [self relayoutAfterSizeChangeIfNeeded];
 
   // Fixes an iOS 11 bug where supplementary views would be given a zPosition of 1, meaning the
   // scroll view indicator (with a zPosition of 0) would be placed behind supplementary views.
@@ -144,6 +224,7 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 
 - (void)setCollectionView:(__kindof UICollectionView *)collectionView {
   [super setCollectionView:collectionView];
+  _restingTopTracker = [[MDCCollectionViewRestingTopTracker alloc] initWithCollectionView:collectionView];
 
   // Reset editor and ink to provided collection view.
   _editor = [[MDCCollectionViewEditor alloc] initWithCollectionView:collectionView];
@@ -159,6 +240,57 @@ NSString *const MDCCollectionInfoBarKindFooter = @"MDCCollectionInfoBarKindFoote
 #pragma clang diagnostic pop
     _inkTouchController.delegate = self;
   }
+}
+
+#pragma mark - Size changes
+
+/**
+ Folding or unfolding an iPhone Duo, or rotating, can lay a screen out before its size and side safe area
+ settle, and some transitions never reach the screen. So this reacts to the final width instead: items are
+ re-measured, and a list that was resting at the top stays there when the top inset changes.
+ */
+- (void)relayoutAfterSizeChangeIfNeeded {
+  UICollectionView *collectionView = self.collectionView;
+  CGFloat width = MDCCollectionViewUsableWidth(collectionView);
+  CGFloat topInset = collectionView.adjustedContentInset.top;
+  BOOL firstLayout = (_lastLayoutWidth == 0);
+  BOOL widthChanged = !firstLayout && width != _lastLayoutWidth;
+  BOOL topInsetChanged = !firstLayout && topInset != _lastAdjustedTopInset;
+  _lastLayoutWidth = width;
+  _lastAdjustedTopInset = topInset;
+
+  if (firstLayout) {
+    [_restingTopTracker recordGeometry];
+    return;
+  }
+  if (!widthChanged && !topInsetChanged) {
+    return;
+  }
+
+  BOOL restingAtTop = _restingTopTracker.restingAtTop;
+  if (widthChanged) {
+    [self.collectionViewLayout invalidateLayout];
+  }
+  if (restingAtTop) {
+    [self scrollToRestingTop];
+  }
+  __weak typeof(self) weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    typeof(self) strongSelf = weakSelf;
+    if (!strongSelf) {
+      return;
+    }
+    if (restingAtTop) {
+      [strongSelf scrollToRestingTop];
+    }
+    [strongSelf->_restingTopTracker recordGeometry];
+  });
+}
+
+- (void)scrollToRestingTop {
+  UICollectionView *collectionView = self.collectionView;
+  collectionView.contentOffset =
+      CGPointMake(collectionView.contentOffset.x, -collectionView.adjustedContentInset.top);
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {

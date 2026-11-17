@@ -115,8 +115,12 @@ CGRect MDCSideBarFrameInView(UIView *view) {
       return CGRectNull;
     }
     CGRect frameInView = [window convertRect:frame toView:view];
+    // A push or pop slides the screen sideways; its column stays at its own trailing edge.
+    frameInView.origin.x =
+        CGRectGetMaxX(view.bounds) - (CGRectGetMaxX(window.bounds) - CGRectGetMinX(frame));
     // A sheet or other inset presentation doesn't reach the column.
-    if (!CGRectContainsRect(CGRectInset(view.bounds, -1, -1), frameInView)) {
+    if (CGRectGetWidth(view.bounds) < CGRectGetWidth(window.bounds) - 1 ||
+        !CGRectContainsRect(CGRectInset(view.bounds, -1, -1), frameInView)) {
       return CGRectNull;
     }
     return frameInView;

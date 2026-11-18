@@ -77,6 +77,8 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   NSLayoutConstraint *_verticalConstraint;
   NSLayoutConstraint *_topSafeAreaConstraint;
   UIStackView *_sideBarStack;
+  NSLayoutConstraint *_sideBarStackTopConstraint;
+  NSLayoutConstraint *_sideBarStackCenterXConstraint;
   NSArray<UIBarButtonItem *> *_sideBarItems;
   BOOL _showsSideBar;
 }
@@ -318,6 +320,18 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   [self updateSideBarButtons];
 }
 
+- (void)viewWillTransitionToSize:(CGSize)size
+       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+
+  // A fold or rotation can move the column after this screen's last layout pass.
+  __weak MDCAppBarViewController *weakSelf = self;
+  [coordinator animateAlongsideTransition:nil
+                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+                                 [weakSelf updateSideBarButtons];
+                               }];
+}
+
 - (void)viewWillLayoutSubviews {
   [super viewWillLayoutSubviews];
 
@@ -376,7 +390,8 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
 // than in the header.
 - (void)updateSideBarButtons {
   UIView *host = self.headerView.hidden ? nil : [self sideBarButtonsHost];
-  BOOL hasSideBar = host && !CGRectIsNull(MDCSideBarFrameInView(host));
+  CGRect sideBarFrame = host ? MDCSideBarFrameInView(host) : CGRectNull;
+  BOOL hasSideBar = !CGRectIsNull(sideBarFrame);
   if (hasSideBar != _showsSideBar) {
     _showsSideBar = hasSideBar;
     // Apps darken the status pill's content while it sits in the column.
@@ -400,15 +415,20 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   }
 
   UIStackView *stack = [self sideBarStack];
-  if (stack.superview != host) {
-    [host addSubview:stack];
-    // Constraints, not a frame: a fold moves the column after this screen's last layout pass.
-    UILayoutGuide *sideBar = MDCSideBarLayoutGuide(host);
-    [NSLayoutConstraint activateConstraints:@[
-      [stack.topAnchor constraintEqualToAnchor:sideBar.topAnchor],
-      [stack.centerXAnchor constraintEqualToAnchor:sideBar.centerXAnchor],
-    ]];
+  if (stack.superview != host || !_sideBarStackTopConstraint.active) {
+    if (stack.superview != host) {
+      [host addSubview:stack];
+    }
+    _sideBarStackTopConstraint = [stack.topAnchor constraintEqualToAnchor:host.topAnchor];
+    _sideBarStackCenterXConstraint = [stack.centerXAnchor constraintEqualToAnchor:host.leftAnchor];
+    [NSLayoutConstraint
+        activateConstraints:@[ _sideBarStackTopConstraint, _sideBarStackCenterXConstraint ]];
   }
+  // Placed from the column the window reports, the same frame that decided to show it, rather than
+  // the host's own side bar guide, which can resolve to a strip inside the host's safe area and
+  // leave the buttons beside the status pill instead of under it.
+  _sideBarStackTopConstraint.constant = CGRectGetMinY(sideBarFrame);
+  _sideBarStackCenterXConstraint.constant = CGRectGetMidX(sideBarFrame);
   [self updateSideBarButtonsForItems:items];
   [host bringSubviewToFront:stack];
 }
@@ -424,7 +444,7 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
 }
 
 // Items without an action or menu are spacers and are dropped; nil when an item can only be drawn
-// by the header.
+// by the header. Text buttons such as Done or Share stay in the header too.
 - (nullable NSArray<UIBarButtonItem *> *)sideBarItemsFrom:(NSArray<UIBarButtonItem *> *)items {
   NSMutableArray<UIBarButtonItem *> *sideBarItems = [NSMutableArray array];
   for (UIBarButtonItem *item in items) {
@@ -435,7 +455,7 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
     if (!item.action && !item.menu) {
       continue;
     }
-    if (SideBarCustomView(item) || (!item.image && item.title.length == 0) ||
+    if (SideBarCustomView(item) || !item.image ||
         [self sideBarCannotSendAction:item]) {
       return nil;
     }
@@ -506,7 +526,6 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
         image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
       }
       configuration.image = image;
-      configuration.title = configuration.image ? nil : item.title;
       button.configuration = configuration;
       button.tag = (NSInteger)index;
       button.enabled = customButton ? customButton.enabled : item.enabled;

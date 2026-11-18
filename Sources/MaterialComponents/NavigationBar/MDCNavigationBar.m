@@ -307,7 +307,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   // what the pill leaves free, unless that would truncate it.
   if (self.titleAlignment == MDCNavigationBarTitleAlignmentCenter &&
       safeAreaInsets.right > self.safeAreaInsets.right) {
-    CGFloat midX = CGRectGetMidX(self.bounds);
+    CGFloat midX = [self mdc_titleCenterX];
     CGFloat halfWidth =
         MAX(0, MIN(midX - CGRectGetMinX(textFrame), CGRectGetMaxX(textFrame) - midX));
     CGFloat titleWidth =
@@ -554,6 +554,12 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   }
 }
 
+// The safe area's midpoint, which the content below centres on too (e.g. beside the iPhone Duo's
+// side column).
+- (CGFloat)mdc_titleCenterX {
+  return CGRectGetMidX(UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets));
+}
+
 - (CGRect)mdc_frameAlignedHorizontally:(CGRect)frame
                              alignment:(MDCNavigationBarTitleAlignment)alignment {
   switch (alignment) {
@@ -574,9 +580,8 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
         titleRightInset = self.titleInsets.left;
       }
 
-      // Determine how much space is available to the left/right of the safe area's midpoint, which
-      // the content below centres on too (e.g. beside the iPhone Duo's side column).
-      CGFloat midX = CGRectGetMidX(UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets));
+      // Determine how much space is available to the left/right of the title's centre line
+      CGFloat midX = [self mdc_titleCenterX];
       CGFloat leftMidSpaceX = midX - CGRectGetMaxX(leftButtonBar.frame) - titleLeftInset;
       CGFloat rightMidSpaceX = CGRectGetMinX(rightButtonBar.frame) - midX - titleRightInset;
       CGFloat halfFrameWidth = CGRectGetWidth(frame) / 2;

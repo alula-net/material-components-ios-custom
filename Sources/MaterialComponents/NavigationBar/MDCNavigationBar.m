@@ -574,15 +574,16 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
         titleRightInset = self.titleInsets.left;
       }
 
-      // Determine how much space is available to the left/right of the navigation bar's midpoint
-      CGFloat midX = CGRectGetMidX(self.bounds);
+      // Determine how much space is available to the left/right of the safe area's midpoint, which
+      // the content below centres on too (e.g. beside the iPhone Duo's side column).
+      CGFloat midX = CGRectGetMidX(UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets));
       CGFloat leftMidSpaceX = midX - CGRectGetMaxX(leftButtonBar.frame) - titleLeftInset;
       CGFloat rightMidSpaceX = CGRectGetMinX(rightButtonBar.frame) - midX - titleRightInset;
       CGFloat halfFrameWidth = CGRectGetWidth(frame) / 2;
 
       // Place the title in the exact center if we have enough left/right space
       if (leftMidSpaceX >= halfFrameWidth && rightMidSpaceX >= halfFrameWidth) {
-        CGFloat xOrigin = CGRectGetMaxX(self.bounds) / 2 - CGRectGetWidth(frame) / 2;
+        CGFloat xOrigin = midX - CGRectGetWidth(frame) / 2;
         return CGRectMake(xOrigin, CGRectGetMinY(frame), CGRectGetWidth(frame),
                           CGRectGetHeight(frame));
       }

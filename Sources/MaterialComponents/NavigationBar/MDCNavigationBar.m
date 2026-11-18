@@ -249,6 +249,18 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 - (UIEdgeInsets)mdc_layoutSafeAreaInsets {
   UIEdgeInsets insets = self.safeAreaInsets;
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (@available(iOS 26.0, *)) {
+    // A bar drawn up to the top of the screen (the iPhone Duo's status band) keeps its items clear of
+    // the display's rounded top-left corner. The right side already makes room for the status pill
+    // below, and the corner-adapted inset there would count the pill twice.
+    UIEdgeInsets cornerInsets = [self
+        edgeInsetsForLayoutRegion:[UIViewLayoutRegion
+                                      safeAreaLayoutRegionWithCornerAdaptation:
+                                          UIViewLayoutRegionAdaptivityAxisHorizontal]];
+    insets.left = MAX(insets.left, cornerInsets.left);
+  }
+#endif
   UIWindow *window = self.window;
   if (window && MDCStatusPillBandOverlap(window) > 0 &&
       CGRectGetMinY([self convertRect:self.bounds toView:window]) < window.safeAreaInsets.top) {

@@ -249,6 +249,18 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
 
 - (UIEdgeInsets)mdc_layoutSafeAreaInsets {
   UIEdgeInsets insets = self.safeAreaInsets;
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+  if (@available(iOS 26.0, *)) {
+    // A bar drawn up to the top of the screen (the iPhone Duo's status band) keeps its items clear of
+    // the display's rounded top-left corner. The right side already makes room for the status pill
+    // below, and the corner-adapted inset there would count the pill twice.
+    UIEdgeInsets cornerInsets = [self
+        edgeInsetsForLayoutRegion:[UIViewLayoutRegion
+                                      safeAreaLayoutRegionWithCornerAdaptation:
+                                          UIViewLayoutRegionAdaptivityAxisHorizontal]];
+    insets.left = MAX(insets.left, cornerInsets.left);
+  }
+#endif
   UIWindow *window = self.window;
   if (window && MDCStatusPillBandOverlap(window) > 0 &&
       CGRectGetMinY([self convertRect:self.bounds toView:window]) < window.safeAreaInsets.top) {
@@ -307,7 +319,7 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   // what the pill leaves free, unless that would truncate it.
   if (self.titleAlignment == MDCNavigationBarTitleAlignmentCenter &&
       safeAreaInsets.right > self.safeAreaInsets.right) {
-    CGFloat midX = CGRectGetMidX(self.bounds);
+    CGFloat midX = [self mdc_titleCenterX];
     CGFloat halfWidth =
         MAX(0, MIN(midX - CGRectGetMinX(textFrame), CGRectGetMaxX(textFrame) - midX));
     CGFloat titleWidth =
@@ -554,6 +566,12 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
   }
 }
 
+// The safe area's midpoint, which the content below centres on too (e.g. beside the iPhone Duo's
+// side column).
+- (CGFloat)mdc_titleCenterX {
+  return CGRectGetMidX(UIEdgeInsetsInsetRect(self.bounds, self.safeAreaInsets));
+}
+
 - (CGRect)mdc_frameAlignedHorizontally:(CGRect)frame
                              alignment:(MDCNavigationBarTitleAlignment)alignment {
   switch (alignment) {
@@ -574,15 +592,15 @@ static NSArray<NSString *> *MDCNavigationBarNavigationItemKVOPaths(void) {
         titleRightInset = self.titleInsets.left;
       }
 
-      // Determine how much space is available to the left/right of the navigation bar's midpoint
-      CGFloat midX = CGRectGetMidX(self.bounds);
+      // Determine how much space is available to the left/right of the title's centre line
+      CGFloat midX = [self mdc_titleCenterX];
       CGFloat leftMidSpaceX = midX - CGRectGetMaxX(leftButtonBar.frame) - titleLeftInset;
       CGFloat rightMidSpaceX = CGRectGetMinX(rightButtonBar.frame) - midX - titleRightInset;
       CGFloat halfFrameWidth = CGRectGetWidth(frame) / 2;
 
       // Place the title in the exact center if we have enough left/right space
       if (leftMidSpaceX >= halfFrameWidth && rightMidSpaceX >= halfFrameWidth) {
-        CGFloat xOrigin = CGRectGetMaxX(self.bounds) / 2 - CGRectGetWidth(frame) / 2;
+        CGFloat xOrigin = midX - CGRectGetWidth(frame) / 2;
         return CGRectMake(xOrigin, CGRectGetMinY(frame), CGRectGetWidth(frame),
                           CGRectGetHeight(frame));
       }

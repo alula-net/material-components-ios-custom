@@ -390,6 +390,11 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
 // than in the header.
 - (void)updateSideBarButtons {
   UIView *host = self.headerView.hidden ? nil : [self sideBarButtonsHost];
+  // Off screen, as under a pushed screen, the column can't be measured; keep the last layout for the
+  // pop back.
+  if (host && !host.window) {
+    return;
+  }
   CGRect sideBarFrame = host ? MDCSideBarFrameInView(host) : CGRectNull;
   BOOL hasSideBar = !CGRectIsNull(sideBarFrame);
   if (hasSideBar != _showsSideBar) {

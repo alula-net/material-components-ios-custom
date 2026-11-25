@@ -81,6 +81,7 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   NSLayoutConstraint *_sideBarStackCenterXConstraint;
   NSArray<UIBarButtonItem *> *_sideBarItems;
   BOOL _showsSideBar;
+  BOOL _sideBarRecheckPending;
 }
 
 - (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
@@ -393,19 +394,14 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   // Off screen, as under a pushed screen, the column can't be measured; keep the last layout for the
   // pop back. A table screen's header has no host at all until the pop puts its table back.
   if (!self.headerView.hidden && !host.window) {
+    [self updateKeptSideBarItems];
     return;
   }
   CGRect sideBarFrame = host ? MDCSideBarFrameInView(host) : CGRectNull;
   BOOL hasSideBar = !CGRectIsNull(sideBarFrame);
-  // Mid push or pop the sliding screen can't always be measured either; check again once it settles.
-  id<UIViewControllerTransitionCoordinator> coordinator =
-      self.parentViewController.transitionCoordinator;
-  if (!hasSideBar && _showsSideBar && coordinator) {
-    __weak MDCAppBarViewController *weakSelf = self;
-    [coordinator animateAlongsideTransition:nil
-                                 completion:^(__unused id<UIViewControllerTransitionCoordinatorContext> context) {
-                                   [weakSelf updateSideBarButtons];
-                                 }];
+  // Mid push or pop the sliding screen can't always be measured either; check again once it ends.
+  if (!hasSideBar && _showsSideBar && [self recheckSideBarAfterNavigationTransition]) {
+    [self updateKeptSideBarItems];
     return;
   }
   if (hasSideBar != _showsSideBar) {
@@ -447,6 +443,55 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
   _sideBarStackCenterXConstraint.constant = CGRectGetMidX(sideBarFrame);
   [self updateSideBarButtonsForItems:items];
   [host bringSubviewToFront:stack];
+}
+
+// YES when a push or pop is under way and will update the buttons again once it completes. A size
+// change has no view controllers, and the column it takes away is gone for real.
+- (BOOL)recheckSideBarAfterNavigationTransition {
+  id<UIViewControllerTransitionCoordinator> coordinator =
+      self.parentViewController.transitionCoordinator;
+  if (![coordinator viewControllerForKey:UITransitionContextFromViewControllerKey]) {
+    return NO;
+  }
+  if (_sideBarRecheckPending) {
+    return YES;
+  }
+  __weak MDCAppBarViewController *weakSelf = self;
+  // NO when the transition is already finishing and the completion won't run.
+  _sideBarRecheckPending = [coordinator
+      animateAlongsideTransition:nil
+                      completion:^(__unused id<UIViewControllerTransitionCoordinatorContext> ctx) {
+                        MDCAppBarViewController *strongSelf = weakSelf;
+                        if (strongSelf) {
+                          strongSelf->_sideBarRecheckPending = NO;
+                          [strongSelf updateSideBarButtons];
+                        }
+                      }];
+  return _sideBarRecheckPending;
+}
+
+// While the column keeps its last layout, items the screen replaced meanwhile still reach its
+// buttons, so a tap never goes to an item the screen dropped.
+- (void)updateKeptSideBarItems {
+  if (!_showsSideBar || !_sideBarStack.superview || ![self canShowSideBarButtons]) {
+    return;
+  }
+  NSArray<UIBarButtonItem *> *leadingItems =
+      [self sideBarItemsFrom:self.navigationBar.displayedLeadingBarButtonItems];
+  NSArray<UIBarButtonItem *> *trailingItems =
+      [self sideBarItemsFrom:self.navigationBar.trailingBarButtonItems];
+  // Items that would change which side sits in the header wait for the next measured layout.
+  if (!leadingItems || !trailingItems ||
+      (leadingItems.count > 0) != self.navigationBar.hidesLeadingButtonBar ||
+      (trailingItems.count > 0) != self.navigationBar.hidesTrailingButtonBar) {
+    return;
+  }
+  NSArray<UIBarButtonItem *> *items = [leadingItems arrayByAddingObjectsFromArray:trailingItems];
+  if (items.count == 0) {
+    return;
+  }
+  [self setSideBarItems:items];
+  [self updateSideBarButtonsForItems:items];
 }
 
 // The glass buttons the column uses need iOS 26.

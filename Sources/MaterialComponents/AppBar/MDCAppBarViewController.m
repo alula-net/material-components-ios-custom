@@ -391,12 +391,23 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
 - (void)updateSideBarButtons {
   UIView *host = self.headerView.hidden ? nil : [self sideBarButtonsHost];
   // Off screen, as under a pushed screen, the column can't be measured; keep the last layout for the
-  // pop back.
-  if (host && !host.window) {
+  // pop back. A table screen's header has no host at all until the pop puts its table back.
+  if (!self.headerView.hidden && !host.window) {
     return;
   }
   CGRect sideBarFrame = host ? MDCSideBarFrameInView(host) : CGRectNull;
   BOOL hasSideBar = !CGRectIsNull(sideBarFrame);
+  // Mid push or pop the sliding screen can't always be measured either; check again once it settles.
+  id<UIViewControllerTransitionCoordinator> coordinator =
+      self.parentViewController.transitionCoordinator;
+  if (!hasSideBar && _showsSideBar && coordinator) {
+    __weak MDCAppBarViewController *weakSelf = self;
+    [coordinator animateAlongsideTransition:nil
+                                 completion:^(__unused id<UIViewControllerTransitionCoordinatorContext> context) {
+                                   [weakSelf updateSideBarButtons];
+                                 }];
+    return;
+  }
   if (hasSideBar != _showsSideBar) {
     _showsSideBar = hasSideBar;
     // Apps darken the status pill's content while it sits in the column.

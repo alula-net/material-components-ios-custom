@@ -535,8 +535,9 @@ static UIView *_Nullable SideBarBadge(UIBarButtonItem *item) {
       button.tag = (NSInteger)index;
       button.enabled = customButton ? customButton.enabled : item.enabled;
       [self updateSideBarBadgeOfButton:button fromItem:item];
-      button.menu = item.action ? nil : item.menu;
-      button.showsMenuAsPrimaryAction = button.menu != nil;
+      // As in the bar, a menu opens on tap unless the item has a primary action.
+      button.menu = item.menu;
+      button.showsMenuAsPrimaryAction = item.menu != nil && item.primaryAction == nil;
       button.accessibilityLabel = item.accessibilityLabel ?: item.title;
       button.accessibilityIdentifier = item.accessibilityIdentifier;
     }];
